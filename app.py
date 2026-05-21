@@ -21,7 +21,7 @@ def get_etf_data(code):
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
     closes, dates = [], []
     for page in range(1, 8):
-        url = f"https://finance.naver.com/item/sise_day.nhn?code={code}&page={page}"
+        url = "https://finance.naver.com/item/sise_day.nhn?code=" + code + "&page=" + str(page)
         try:
             r = requests.get(url, headers=headers, timeout=10)
             r.encoding = "euc-kr"
@@ -65,5 +65,62 @@ def get_etf_data(code):
     }
 
 def fmt(n):
-    if n is None: return "-"
-    return f"{in
+    if n is None:
+        return "-"
+    return "{:,}".format(int(n))
+
+def diff_str(d):
+    if d is None:
+        return "-"
+    sign = "+" if d >= 0 else ""
+    return sign + str(d) + "%"
+
+KST = pytz.timezone("Asia/Seoul")
+now = datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S")
+
+st.title("ETF 이동평균 대시보드")
+st.caption("네이버 금융 기준 · 업데이트: " + now + " (KST)")
+
+if st.button("새로고침"):
+    st.rerun()
+
+st.divider()
+
+with st.spinner("데이터 불러오는 중..."):
+    for code, name in TICKERS.items():
+        d = get_etf_data(code)
+        if not d:
+            st.error(code + " " + name + " 데이터 수신 실패")
+            continue
+        chg_color = "normal" if d["change"] >= 0 else "inverse"
+        sign = "+" if d["change"] >= 0 else ""
+        col1, col2, col3, col4, col5, col6 = st.columns([2.5, 1.5, 1, 1, 1, 1])
+        with col1:
+            st.markdown("**" + name + "**")
+            st.caption(code + " · " + d["date"])
+        with col2:
+            st.metric(
+                label="현재가",
+                value=fmt(d["current"]),
+                delta=sign + str(round(d["change_pct"], 2)) + "%",
+                delta_color=chg_color
+            )
+        with col3:
+            color5 = "🟢" if (d["diff5"] or 0) >= 0 else "🔴"
+            st.metric(label="5일 MA", value=fmt(d["ma5"]))
+            st.caption(color5 + " " + diff_str(d["diff5"]))
+        with col4:
+            color20 = "🟢" if (d["diff20"] or 0) >= 0 else "🔴"
+            st.metric(label="20일 MA", value=fmt(d["ma20"]))
+            st.caption(color20 + " " + diff_str(d["diff20"]))
+        with col5:
+            color60 = "🟢" if (d["diff60"] or 0) >= 0 else "🔴"
+            st.metric(label="60일 MA", value=fmt(d["ma60"]))
+            st.caption(color60 + " " + diff_str(d["diff60"]))
+        with col6:
+            color120 = "🟢" if (d["diff120"] or 0) >= 0 else "🔴"
+            st.metric(label="120일 MA", value=fmt(d["ma120"]))
+            st.caption(color120 + " " + diff_str(d["diff120"]))
+        st.divider()
+
+st.caption("🟢 현재가가 이평선 위 · 🔴 현재가가 이평선 아래")
